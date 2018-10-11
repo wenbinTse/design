@@ -11,16 +11,26 @@ const double ACC = 1e-20;
 #define DOUBLE_PI           6.28318530717958647692
 #define PI                  3.14159265358979323846
 #define HALF_PI             1.57079632679489661923
-#define ZERO(x)             x < ACC
+#define ZERO(x)             (x) < ACC && (x) > -ACC
 #define INF                 1e30
 #define INF_SMALL           1e-30
+
+enum POINT_STATUS{
+	INSIDE,
+	BOUNDARY,
+	OUTSIDE
+};
 
 class CP_Point
 {
 	public:
 		double m_x, m_y;
 	public:
-		CP_Point(void) :m_x(0.0), m_y(0.0) {}
+		CP_Point(void) :m_x(0.0), m_y(0.0) {};
+		CP_Point(double x, double y) : m_x(x), m_y(y) {};
+		bool operator == (const CP_Point& p) {
+			return m_x == p.m_x && m_y == p.m_y;
+		}
 }; // 类CP_Point定义结束
 
 class CP_Segment {
@@ -28,6 +38,9 @@ public:
 	CP_Point p1, p2;
 public:
 	CP_Segment(CP_Point _p1, CP_Point _p2) :p1(_p1), p2(_p2) {};
+	bool operator == (const CP_Segment& s) {
+		return (p1 == s.p1 && p2 == s.p2) || (p1 == s.p2 && p2 == s.p1);
+	}
 };
 
 typedef vector<CP_Point> VT_PointArray;
@@ -74,7 +87,9 @@ class CP_Polygon
 		bool check();
 		bool checkLoopsDirection();
 		bool checkLoopDirection(CP_Loop loop, bool isOuter);
-		bool include(CP_Point p);
+		bool checkEdgeIntersected();
+		POINT_STATUS include(CP_Point p);
+		bool checkInterLoopInOuterLoop();
 }; // 类CP_Polygon定义结束
 
 // 点到多边形所有边的最短距离
@@ -125,7 +140,10 @@ extern bool     gb_removeRegion(CP_Polygon& pn, int idRegion);
 extern void     gb_subtractOneAboveID(CP_Polygon& pn, int id);
 
 extern double xmult(CP_Point a, CP_Point b, CP_Point c);
-extern bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2);
+extern bool parallel(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
+extern bool parallel(CP_Segment s1, CP_Segment s2);
+extern bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex = true);
+extern bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true);
 extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);
 extern bool segmentIntersected(CP_Segment s1, CP_Segment s2);
 extern bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4);
