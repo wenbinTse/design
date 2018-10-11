@@ -6,7 +6,7 @@
 using namespace std;
 #include <vector>
 
-const double ACC = 1e-20;
+const double ACC = 1e-6;
 
 #define DOUBLE_PI           6.28318530717958647692
 #define PI                  3.14159265358979323846
@@ -29,7 +29,7 @@ class CP_Point
 		CP_Point(void) :m_x(0.0), m_y(0.0) {};
 		CP_Point(double x, double y) : m_x(x), m_y(y) {};
 		bool operator == (const CP_Point& p) {
-			return m_x == p.m_x && m_y == p.m_y;
+			return abs(m_x - p.m_x) < ACC && abs(m_y - p.m_y) < ACC;
 		}
 }; // 类CP_Point定义结束
 
@@ -73,6 +73,9 @@ class CP_Region
 
 	public:
 		CP_Region(void) :m_regionIDinPolygon(0), m_polygon(NULL) { }
+		CP_Region(CP_Loop l) :m_regionIDinPolygon(0), m_polygon(NULL) {
+			m_loopArray.push_back(l);
+		}
 }; // 类CP_Region定义结束
 typedef vector<CP_Region> VT_RegionArray;
 
@@ -82,14 +85,20 @@ class CP_Polygon
 		VT_PointArray m_pointArray;
 		VT_RegionArray m_regionArray;
 
-	public:
-		void mb_clear() { m_pointArray.clear(); m_regionArray.clear(); }
-		bool check();
+	private:
+		bool checkLoopInLoop(CP_Loop l1, CP_Loop l2);
+		bool checkLoopIntersectLoop(CP_Loop loop1, CP_Loop loop2);
 		bool checkLoopsDirection();
 		bool checkLoopDirection(CP_Loop loop, bool isOuter);
 		bool checkEdgeIntersected();
 		POINT_STATUS include(CP_Point p);
-		bool checkInterLoopInOuterLoop();
+		bool checkInnerLoopInOuterLoop();
+		bool checkInnerLoopInInnerLoop();
+		bool checkRegion();
+		bool checkRegionIntersectRegion(CP_Region region1, CP_Region region2);
+public:
+		void mb_clear() { m_pointArray.clear(); m_regionArray.clear(); }
+		bool check(string& message);
 }; // 类CP_Polygon定义结束
 
 // 点到多边形所有边的最短距离
@@ -142,6 +151,7 @@ extern void     gb_subtractOneAboveID(CP_Polygon& pn, int id);
 extern double xmult(CP_Point a, CP_Point b, CP_Point c);
 extern bool parallel(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
 extern bool parallel(CP_Segment s1, CP_Segment s2);
+extern CP_Point middlePoint(CP_Point p1, CP_Point p2);
 extern bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex = true);
 extern bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true);
 extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);

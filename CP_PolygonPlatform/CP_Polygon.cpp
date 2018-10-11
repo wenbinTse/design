@@ -2,7 +2,27 @@
 #include "CP_Polygon.h"
 #include<set>
 
-bool CP_Polygon::check() {
+bool CP_Polygon::check(string& message) {
+	if (!checkLoopsDirection()) {
+		message = "环的方向不对";
+		return false;
+	}
+	if (!checkEdgeIntersected()) {
+		message = "两边要么不相交，要么交点是顶点";
+		return false;
+	}
+	if (!checkInnerLoopInOuterLoop()) {
+		message = "内环应该包含在外环中";
+		return false;
+	}
+	if (!checkInnerLoopInInnerLoop()) {
+		message = "内环存在交集";
+		return  false;
+	}
+	if (!checkRegion()) {
+		message = "区域之间存在交集";
+		return false;
+	}
 	return true;
 }
 
@@ -38,6 +58,7 @@ bool CP_Polygon::checkLoopsDirection() {
 	return true;
 }
 
+// 不相交返回True
 bool CP_Polygon::checkEdgeIntersected() {
 	vector<CP_Segment> edges;
 	int nr = m_regionArray.size(), nl, nv, i, j, z;
@@ -54,7 +75,7 @@ bool CP_Polygon::checkEdgeIntersected() {
 	}
 	int n = edges.size();
 	for (i = 0; i < n - 1; i++)
-		for (j = 1; j < n; j++) {
+		for (j = i + 1; j < n; j++) {
 			if (edges[i] == edges[j]) return false;
 			else if (parallel(edges[i], edges[j]) &&
 				(pointInSegment(edges[i].p1, edges[j], false) || pointInSegment(edges[i].p2, edges[j], false))
@@ -62,9 +83,11 @@ bool CP_Polygon::checkEdgeIntersected() {
 				return false;
 			else if (!segmentIntersected(edges[i], edges[j])) {
 				// 不相交
+				continue;
 			}
-			else if (!(edges[i].p1 == edges[j].p1 || edges[i].p1 == edges[j].p2 || edges[i].p2 == edges[j].p1 || edges[i].p2 == edges[i].p2)) {
+			else if (edges[i].p1 == edges[j].p1 || edges[i].p1 == edges[j].p2 || edges[i].p2 == edges[j].p1 || edges[i].p2 == edges[j].p2) {
 				// 顶点相交
+				continue;
 			}
 			else
 				return false;
@@ -109,12 +132,122 @@ POINT_STATUS CP_Polygon::include(CP_Point p) {
 	return count % 2 ? INSIDE : OUTSIDE;
 }
 
-bool CP_Polygon::checkInterLoopInOuterLoop() {
-	int nr
+// 假设已经确保了线段要么不相交，要么交点是端点
+// 判断loop2是否被完全包含在loop1, 完全包含返回True
+bool CP_Polygon::checkLoopInLoop(CP_Loop loop1, CP_Loop loop2) {
+	int i, nv = loop2.m_pointIDArray.size();
+	CP_Polygon polygon;
+	polygon.m_pointArray = m_pointArray;
+	polygon.m_regionArray.push_back(CP_Region(loop1));
+	for (i = 0; i < nv; i++) {
+		CP_Point a = m_pointArray[loop2.m_pointIDArray[i]];
+		CP_Point b = m_pointArray[loop2.m_pointIDArray[(i + 1) % nv]];
+		CP_Point m = middlePoint(a, b);
+		if (polygon.include(m) == OUTSIDE) return false;
+	}
+	return true;
 }
 
+// 假设已经确保了线段要么不相交，要么交点是端点
+// 判断loop1和loop2是否有相交（不含点相交情况）， 有相交返回True
+bool CP_Polygon::checkLoopIntersectLoop(CP_Loop loop1, CP_Loop loop2) {
+	int i, nv1 = loop1.m_pointIDArray.size(), nv2 = loop2.m_pointIDArray.size();
+	CP_Polygon polygon;
+	polygon.m_pointArray = m_pointArray;
+	polygon.m_regionArray.push_back(CP_Region(loop1)); //  将loop1赋予多边形
+	for (i = 0; i < nv2; i++) {
+		CP_Point a = m_pointArray[loop2.m_pointIDArray[i]];
+		CP_Point b = m_pointArray[loop2.m_pointIDArray[(i + 1) % nv2]];
+		CP_Point m = middlePoint(a, b);
+		if (polygon.include(m) != OUTSIDE) return false;
+	}
+	polygon.m_regionArray.clear();
+	polygon.m_regionArray.push_back(CP_Region(loop2)); //  将loop2赋予多边形
+	for (i = 0; i < nv1; i++) {
+		CP_Point a = m_pointArray[loop1.m_pointIDArray[i]];
+		CP_Point b = m_pointArray[loop1.m_pointIDArray[(i + 1) % nv1]];
+		CP_Point m = middlePoint(a, b);
+		if (polygon.include(m) != OUTSIDE) return false;
+	}
+	return true;
+}
+
+// 假设已经确保了线段要么不相交，要么交点是端点
+// 判断内环是否被外环包含
+bool CP_Polygon::checkInnerLoopInOuterLoop() {
+	int nr = m_regionArray.size(), nl, nv, i, j, z;
+	for (i = 0; i < nr; i++) {
+		nl = m_regionArray[i].m_loopArray.size();
+		CP_Loop outerLoop = m_regionArray[i].m_loopArray[0];
+		for (j = 1; j < nl; j++) { // 内环遍历
+			CP_Loop innerLoop = m_regionArray[i].m_loopArray[j];
+			if (!checkLoopInLoop(outerLoop, innerLoop)) return false;
+		}
+	}
+	return true;
+}
+
+// 假设已经确保了线段要么不相交，要么交点是端点
+// 判断内环是否有交集
+bool CP_Polygon::checkInnerLoopInInnerLoop() {
+	int nr = m_regionArray.size(), nl, nv, i, j, z;
+	for (i = 0; i < nr; i++) {
+		CP_Region region = m_regionArray[i];
+		int loopsSize = region.m_loopArray.size();
+		for (j = 1; j < loopsSize - 1; j++)
+			for (z = j + 1; z < loopsSize; z++) {
+				CP_Loop loop1 = region.m_loopArray[j];
+				CP_Loop loop2 = region.m_loopArray[z];
+				if (checkLoopIntersectLoop(loop1, loop2))
+					return false;
+			}
+	}
+	return true;
+}
+
+// 假设两个Region都是合法的
+// 判断这两个Region是否有非法交集，没有则返回True
+bool CP_Polygon::checkRegionIntersectRegion(CP_Region region1, CP_Region region2) {
+	CP_Polygon polygon;
+	polygon.m_pointArray = m_pointArray;
+	int nv1 = region1.m_loopArray[0].m_pointIDArray.size(),
+		nv2 = region2.m_loopArray[0].m_pointIDArray.size(), i;
+	polygon.m_regionArray.push_back(region1); // 将region1赋予多边形
+	CP_Loop outerLoop = region2.m_loopArray[0];
+	for (i = 0; i < nv2; i++) {
+		CP_Point p1 = m_pointArray[outerLoop.m_pointIDArray[i]];
+		CP_Point p2 = m_pointArray[outerLoop.m_pointIDArray[(i + 1) % nv2]];
+		CP_Point m = middlePoint(p1, p2);
+		if (polygon.include(m) != OUTSIDE) return false;
+	}
+
+	polygon.m_regionArray.clear();
+	polygon.m_regionArray.push_back(region2); // 将region2赋予多边形
+	outerLoop = region1.m_loopArray[0];
+	for (i = 0; i < nv1; i++) {
+		CP_Point p1 = m_pointArray[outerLoop.m_pointIDArray[i]];
+		CP_Point p2 = m_pointArray[outerLoop.m_pointIDArray[(i + 1) % nv1]];
+		CP_Point m = middlePoint(p1, p2);
+		if (polygon.include(m) != OUTSIDE) return false;
+	}
+	return true;
+}
+
+// 假设两个Region都是合法的
+// 判断Region中是否有非法交集，有则返回True
+bool CP_Polygon::checkRegion() {
+	int i, j, nr = m_regionArray.size();
+	for (i = 0; i < nr - 1; i++)
+		for (j = i + 1; j < nr; j++) {
+			if (!checkRegionIntersectRegion(m_regionArray[i], m_regionArray[j]))
+				return false;
+		}
+	return true;
+}
+
+
 void gb_distanceMinPointLoop(double&d, int& idRegion, int& idLoop,
-	CP_Point& pt, CP_Pnolygon& pn)
+	CP_Point& pt, CP_Polygon& pn)
 {
 	d = 0.0;
 	idRegion = -1;
@@ -625,7 +758,7 @@ void gb_subtractOneAboveID(CP_Polygon& pn, int id)
 } // 函数gb_subtractOneAboveID结束
 
 double xmult(CP_Point a, CP_Point b, CP_Point c) {
-	return (b.m_x - a.m_x) * (c.m_y - b.m_y) - (b.m_y - a.m_y) * (c.m_x - b.m_x);
+	return (a.m_x - c.m_x) * (b.m_y - c.m_y) - (a.m_y - c.m_y) * (b.m_x - c.m_x);
 }
 
 bool parallel(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2) {
@@ -637,17 +770,22 @@ bool parallel(CP_Segment s1, CP_Segment s2) {
 	return parallel(s1.p1, s1.p2, s2.p1, s2.p2);
 }
 
-bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex = true) {
+CP_Point middlePoint(CP_Point p1, CP_Point p2) {
+	return CP_Point((p1.m_x + p2.m_x) / 2, (p1.m_y + p2.m_y) / 2);
+}
+
+bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex) {
+	double tmp = xmult(a, l1, l2);
 	if (include_vertex)
-		return ZERO(xmult(a, l1, l2)) && (
-			(a.m_x <= l1.m_x && a.m_x >= l2.m_x ) || (a.m_x <= l2.m_x && a.m_x >= l2.m_x)
+		return ZERO(tmp) && (
+			(a.m_x <= l1.m_x && a.m_x >= l2.m_x ) || (a.m_x <= l2.m_x && a.m_x >= l1.m_x)
 			);
-	else return  ZERO(xmult(a, l1, l2)) && (
+	else return  ZERO(tmp) && (
 		(a.m_x < l1.m_x && a.m_x > l2.m_x) || (a.m_x < l2.m_x && a.m_x >= l2.m_x)
 		);
 }
 
-bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true) {
+bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex) {
 	return pointInSegment(a, s.p1, s.p2, include_vertex);
 }
 
