@@ -160,7 +160,7 @@ extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);
 extern bool segmentIntersected(CP_Segment s1, CP_Segment s2);
 extern bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4);
 extern bool inSameLine(CP_Point a, CP_Point b, CP_Point c);
-
+extern CP_Point getIntersection(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
 extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b);
 #endif
 
