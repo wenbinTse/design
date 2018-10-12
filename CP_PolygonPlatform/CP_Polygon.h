@@ -99,6 +99,7 @@ class CP_Polygon
 public:
 		void mb_clear() { m_pointArray.clear(); m_regionArray.clear(); }
 		bool check(string& message);
+		bool check(string& message, string name);
 }; // 类CP_Polygon定义结束
 
 // 点到多边形所有边的最短距离
@@ -149,6 +150,7 @@ extern bool     gb_removeRegion(CP_Polygon& pn, int idRegion);
 extern void     gb_subtractOneAboveID(CP_Polygon& pn, int id);
 
 extern double xmult(CP_Point a, CP_Point b, CP_Point c);
+extern double distance(CP_Point a, CP_Point b);
 extern bool parallel(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
 extern bool parallel(CP_Segment s1, CP_Segment s2);
 extern CP_Point middlePoint(CP_Point p1, CP_Point p2);
@@ -157,5 +159,8 @@ extern bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true)
 extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);
 extern bool segmentIntersected(CP_Segment s1, CP_Segment s2);
 extern bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4);
+extern bool inSameLine(CP_Point a, CP_Point b, CP_Point c);
+
+extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b);
 #endif
 

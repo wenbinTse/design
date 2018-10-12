@@ -26,6 +26,12 @@ bool CP_Polygon::check(string& message) {
 	return true;
 }
 
+bool CP_Polygon::check(string& message, string name) {
+	bool ans = check(message);
+	message = "多边形" + name + "不合法：\n" + message;
+	return ans;
+}
+
 bool CP_Polygon::checkLoopDirection(CP_Loop loop, bool isOuter) {
 	int np = loop.m_pointIDArray.size();
 	if (np < 3) return false;
@@ -770,6 +776,10 @@ bool parallel(CP_Segment s1, CP_Segment s2) {
 	return parallel(s1.p1, s1.p2, s2.p1, s2.p2);
 }
 
+bool inSameLine(CP_Point a, CP_Point b, CP_Point c) {
+	return ZERO(xmult(a, b, c)) || ZERO(xmult(a, c, b));
+}
+
 CP_Point middlePoint(CP_Point p1, CP_Point p2) {
 	return CP_Point((p1.m_x + p2.m_x) / 2, (p1.m_y + p2.m_y) / 2);
 }
@@ -801,4 +811,94 @@ bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4) {
 
 bool segmentIntersected(CP_Segment s1, CP_Segment s2) {
 	return segmentIntersected(s1.p1, s1.p2, s2.p1, s2.p2);
+}
+
+bool between(double a, double b, double c) {
+	return (a - b) * (a - c) <= 0;
+}
+
+double distance(CP_Point a, CP_Point b) {
+	return gb_distancePointPoint(a, b);
+}
+
+bool addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_Polygon& b) {
+	a = a_old;
+	b = b_old;
+	int anr, anl, anv, bnr, bnl, bnv, ia, ja, za, ib, jb, zb;
+	anr = a.m_regionArray.size(), bnr = b.m_regionArray.size();
+	vector<CP_Segment> segmentsSame, segmentsReve;
+	for (ia = 0; ia < anr; ia++) {
+		anl = a.m_regionArray[ia].m_loopArray.size();
+		for (ja = 0; ja < anl; ja++) {
+			CP_Loop aLoop = a.m_regionArray[ia].m_loopArray[ja];
+			anv = aLoop.m_pointIDArray.size();
+			for (za = 0; za < anv; za++) {
+				CP_Point pa1 = a.m_pointArray[aLoop.m_pointIDArray[za]];
+				CP_Point pa2 = a.m_pointArray[aLoop.m_pointIDArray[(za + 1) % anv]];
+
+				for (ib = 0; ib < bnr; ib++) {
+					bnl = b.m_regionArray[ib].m_loopArray.size();
+					for (jb = 0; jb < bnl; jb++) {
+						CP_Loop bLoop = b.m_regionArray[ib].m_loopArray[jb];
+						bnv = bLoop.m_pointIDArray.size();
+						for (zb = 0; zb < bnv; zb++) {
+							CP_Point pb1 = b.m_pointArray[bLoop.m_pointIDArray[zb]];
+							CP_Point pb2 = b.m_pointArray[bLoop.m_pointIDArray[(zb + 1) % bnv]];
+						
+							if (pa1 == pb1 && pa2 == pb2) {
+								segmentsSame.push_back(CP_Segment(pa1, pa2));
+							} else if (pa1 == pb2 && pa2 == pb1) {
+								segmentsReve.push_back(CP_Segment(pa1, pa2));
+							}
+							else if (parallel(pa1, pa2, pb1, pb2) && !inSameLine(pa1, pa2, pb1) || !segmentIntersected(pa1, pa2, pb1, pb3)) {
+								continue;
+							}
+							else if (parallel(pa1, pa2, pb1, pb2) && inSameLine(pa1, pa2, pb1)) {
+								// 完全重合(a in b)
+								if (pa1.m_x != pa2.m_x && between(pa1.m_x, pb1.m_x, pb2.m_x) && between(pa2.m_x, pb1.m_x, pb2.m_x) ||
+									(pa1.m_x == pa2.m_x && between(pa1.m_y, pb1.m_y, pb2.m_y) && between(pa2.m_y, pb1.m_y, pb2.m_y))
+									) {
+									// 同向
+									if (distance(pa1, pb1) < distance(pa2, pb1)) {
+										b.m_pointArray.push_back(pa1);
+										b.m_pointArray.push_back(pa2);
+										segmentsSame.push_back(CP_Segment(pa1, pa2));
+									}
+									else {
+										b.m_pointArray.push_back(pa2);
+										b.m_pointArray.push_back(pa1);
+										segmentsReve.push_back(CP_Segment(pa1, pa2));
+									}
+									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 1, b.m_pointArray.size() - 2);
+									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 2, b.m_pointArray.size() - 1);
+									zb += 2;
+								}
+								else if (pa1.m_x != pa2.m_x && between(pb1.m_x, pa1.m_x, pa2.m_x) && between(pb2.m_x, pa1.m_x, pa2.m_x) ||
+									(pa1.m_x == pa2.m_x && between(pb1.m_y, pa1.m_y, pa2.m_y) && between(pb2.m_y, pa1.m_y, pa2.m_y))
+									) {
+									// 同向
+									if (distance(pb1, pa1) < distance(pb2, pa1)) {
+										a.m_pointArray.push_back(pb1);
+										a.m_pointArray.push_back(pb2);
+										segmentsSame.push_back(CP_Segment(pb1, pb2));
+									}
+									else {
+										b.m_pointArray.push_back(pa2);
+										b.m_pointArray.push_back(pa1);
+										segmentsReve.push_back(CP_Segment(pa1, pa2));
+									}
+									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 1, b.m_pointArray.size() - 2);
+									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 2, b.m_pointArray.size() - 1);
+									zb += 2;
+								}
+							}
+						
+						}
+					}
+				}
+
+
+			}
+		}
+	}
 }
