@@ -1,0 +1,47 @@
+# Polygon Data(雍俊海: 计算机辅助几何造型(清华大学, 2018秋))
+# 文件创建时间: 2018-10-13 16: 7:42
+
+Tolerance 1e-06
+
+Coordinate 1 0 0
+
+A Polygon
+
+Pointsize 6
+20 10
+0 20
+0 0
+15 10
+5 15
+5 5
+
+Regionsize 1
+Region 0
+Loopsize 2
+Loop 0
+PointIDsize 3
+0 1 2 
+Loop 1
+PointIDsize 3
+5 4 3 
+
+B Polygon
+
+Pointsize 6
+30 10
+10 20
+10 0
+25 10
+15 15
+15 5
+
+Regionsize 1
+Region 0
+Loopsize 2
+Loop 0
+PointIDsize 3
+0 1 2 
+Loop 1
+PointIDsize 3
+5 4 3 
+
