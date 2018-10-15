@@ -6,6 +6,21 @@ bool order(const CP_Segment& a, const CP_Segment& b) {
 	return a.p1.m_x < b.p1.m_x;
 }
 
+CP_Polygon CP_Polygon::operator= (const CP_Polygon polygon)
+{
+	// 指针所指的位置可能已经被回收，所以重新赋值
+	m_pointArray = polygon.m_pointArray;
+	m_regionArray = polygon.m_regionArray;
+	int nr = m_regionArray.size(), nl, i, j;
+	for (i = 0; i < nr; i++) {
+		m_regionArray[i].m_polygon = this;
+		nl = m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++)
+			m_regionArray[i].m_loopArray[j].m_polygon = this;
+	}
+	return *this;
+}
+
 bool CP_Polygon::check(string& message) {
 	if (!checkLoopsDirection()) {
 		message = "环的方向不对";
@@ -255,8 +270,7 @@ bool CP_Polygon::checkRegion() {
 	return true;
 }
 
-
-CP_Polygon CP_Polygon::Union(CP_Polygon b) {
+CP_Polygon CP_Polygon::Union(CP_Polygon& b) {
 	CP_Polygon aNew, bNew, ans;
 	vector<CP_Segment> segments;
 	addIntersectedPoint(*this, b, aNew, bNew);
@@ -288,6 +302,47 @@ CP_Polygon CP_Polygon::Union(CP_Polygon b) {
 				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
 				CP_Segment segment = CP_Segment(p1, p2);
 				if (!segmentInPolygon(segment, *this)) { // TODO 重合
+					segments.push_back(segment);
+				}
+			}
+		}
+	}
+	sort(segments.begin(), segments.end(), order);//先对vector中元素按照x-y坐标升序排序
+	return CP_Polygon(segments);
+}
+
+CP_Polygon CP_Polygon::Intersection(CP_Polygon& b) {
+	CP_Polygon aNew, bNew, ans;
+	vector<CP_Segment> segments;
+	addIntersectedPoint(*this, b, aNew, bNew);
+	int nr = aNew.m_regionArray.size(), nl, nv, i, j, z;
+	for (i = 0; i < nr; i++) {
+		nl = aNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = aNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = aNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = aNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				// 属于A并在B
+				if (segmentInPolygon(segment, b)) { // TODO 重合
+					segments.push_back(segment);
+				}
+			}
+		}
+	}
+	nr = bNew.m_regionArray.size();
+	for (i = 0; i < nr; i++) {
+		nl = bNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = bNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = bNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				if (segmentInPolygon(segment, *this)) { // TODO 重合
 					segments.push_back(segment);
 				}
 			}
@@ -939,8 +994,13 @@ bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex) {
 }
 
 // 假设已经确保两线段要么不相交，要么相交于顶点
-bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon) {
-	return polygon.include(middlePoint(segment)) != OUTSIDE;
+bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon, bool includeBoundary) {
+	if (includeBoundary) {
+		return polygon.include(middlePoint(segment)) != OUTSIDE;
+	}
+	else {
+		return polygon.include(middlePoint(segment)) == INSIDE;
+	}
 }
 
 bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s) {
