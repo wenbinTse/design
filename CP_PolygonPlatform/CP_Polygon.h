@@ -59,7 +59,9 @@ class CP_Loop
 		CP_Polygon* m_polygon;
 
 	public:
-		CP_Loop(void) :m_loopIDinRegion(0), m_regionIDinPolygon(0), m_polygon(NULL) { }
+		CP_Loop(void) :m_loopIDinRegion(0), m_regionIDinPolygon(0), m_polygon(NULL) { };
+		CP_Loop(int loopId, int regionId, CP_Polygon* polygon)
+			:m_loopIDinRegion(loopId), m_regionIDinPolygon(regionId), m_polygon(polygon) {};
 }; // 类CP_Loop定义结束
 
 typedef vector<CP_Loop> VT_LoopArray;
@@ -73,9 +75,10 @@ class CP_Region
 
 	public:
 		CP_Region(void) :m_regionIDinPolygon(0), m_polygon(NULL) { }
-		CP_Region(CP_Loop l) :m_regionIDinPolygon(0), m_polygon(NULL) {
-			m_loopArray.push_back(l);
+		CP_Region(CP_Loop loop) :m_regionIDinPolygon(0), m_polygon(NULL) {
+			m_loopArray.push_back(loop);
 		}
+		CP_Region(int regionId, CP_Polygon* polygon) :m_regionIDinPolygon(regionId), m_polygon(polygon) {}
 }; // 类CP_Region定义结束
 typedef vector<CP_Region> VT_RegionArray;
 
@@ -91,15 +94,31 @@ class CP_Polygon
 		bool checkLoopsDirection();
 		bool checkLoopDirection(CP_Loop loop, bool isOuter);
 		bool checkEdgeIntersected();
-		POINT_STATUS include(CP_Point p);
 		bool checkInnerLoopInOuterLoop();
 		bool checkInnerLoopInInnerLoop();
 		bool checkRegion();
 		bool checkRegionIntersectRegion(CP_Region region1, CP_Region region2);
-public:
+	public:
+		CP_Polygon(vector<CP_Segment> segments);
+		CP_Polygon() {};
 		void mb_clear() { m_pointArray.clear(); m_regionArray.clear(); }
+		POINT_STATUS include(CP_Point p);
 		bool check(string& message);
 		bool check(string& message, string name);
+		CP_Polygon Union(CP_Polygon b);
+		CP_Polygon operator = (const CP_Polygon polygon) {
+			// 指针所指的位置可能已经被回收，所以重新赋值
+			m_pointArray = polygon.m_pointArray;
+			m_regionArray = polygon.m_regionArray;
+			int nr = m_regionArray.size(), nl, i, j;
+			for (i = 0; i < nr; i++) {
+				m_regionArray[i].m_polygon = this;
+				nl = m_regionArray[i].m_loopArray.size();
+				for (j = 0; j < nl; j++)
+					m_regionArray[i].m_loopArray[j].m_polygon = this;
+			}
+			return *this;
+		}
 }; // 类CP_Polygon定义结束
 
 // 点到多边形所有边的最短距离
@@ -154,13 +173,15 @@ extern double distance(CP_Point a, CP_Point b);
 extern bool parallel(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
 extern bool parallel(CP_Segment s1, CP_Segment s2);
 extern CP_Point middlePoint(CP_Point p1, CP_Point p2);
+extern CP_Point middlePoint(CP_Segment s);
 extern bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex = true);
 extern bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true);
+extern bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon);
 extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);
 extern bool segmentIntersected(CP_Segment s1, CP_Segment s2);
 extern bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4);
 extern bool inSameLine(CP_Point a, CP_Point b, CP_Point c);
 extern CP_Point getIntersection(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
-extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b);
+extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b, CP_Polygon& c, CP_Polygon& d);
 #endif
 

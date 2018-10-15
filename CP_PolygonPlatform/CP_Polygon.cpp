@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "CP_Polygon.h"
-#include<set>
+#include<algorithm>
+
+bool order(const CP_Segment& a, const CP_Segment& b) {
+	return a.p1.m_x < b.p1.m_x;
+}
 
 bool CP_Polygon::check(string& message) {
 	if (!checkLoopsDirection()) {
@@ -251,6 +255,123 @@ bool CP_Polygon::checkRegion() {
 	return true;
 }
 
+
+CP_Polygon CP_Polygon::Union(CP_Polygon b) {
+	CP_Polygon aNew, bNew, ans;
+	vector<CP_Segment> segments;
+	addIntersectedPoint(*this, b, aNew, bNew);
+	int nr = aNew.m_regionArray.size(), nl, nv, i, j, z;
+	for (i = 0; i < nr; i++) {
+		nl = aNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = aNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = aNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = aNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				// 属于A不在B
+				if (!segmentInPolygon(segment, b)) { // TODO 重合
+					segments.push_back(segment);
+				}
+			}
+		}
+	}
+	nr = bNew.m_regionArray.size();
+	for (i = 0; i < nr; i++) {
+		nl = bNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = bNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = bNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				if (!segmentInPolygon(segment, *this)) { // TODO 重合
+					segments.push_back(segment);
+				}
+			}
+		}
+	}
+	sort(segments.begin(), segments.end(), order);//先对vector中元素按照x-y坐标升序排序
+	return CP_Polygon(segments);
+}
+
+CP_Polygon::CP_Polygon(vector<CP_Segment> segments) {
+	CP_Point leftest = CP_Point(INF_SMALL, 0), now;
+	double xMax = INF_SMALL, yMax = INF_SMALL, yMin = INF;
+	int rId = -1, lId = -1;
+	while (segments.size()) {
+		if (rId == -1 || this->include(segments[0].p1) != INSIDE) {
+			rId++;
+			lId = 0;
+			this->m_regionArray.push_back(CP_Region(rId, this));
+			this->m_regionArray[rId].m_regionIDinPolygon = rId;
+			this->m_regionArray[rId].m_polygon = this;
+
+			this->m_regionArray[rId].m_loopArray.push_back(CP_Loop(lId, rId, this));
+			CP_Loop* tmpLoop = & this->m_regionArray[rId].m_loopArray[lId];
+			tmpLoop->m_loopIDinRegion = lId;
+			tmpLoop->m_polygon = this;
+			tmpLoop->m_regionIDinPolygon = rId;
+
+			this->m_pointArray.push_back(segments[0].p1);
+			this->m_pointArray.push_back(segments[0].p2);
+			int arrSize = this->m_pointArray.size();
+			tmpLoop->m_pointIDArray.push_back(arrSize - 2);
+			tmpLoop->m_pointIDArray.push_back(arrSize - 1);
+
+			leftest.m_x = segments[0].p1.m_x;
+			leftest.m_y = segments[0].p1.m_y;
+
+			xMax = segments[0].p2.m_x;
+			yMax = max(segments[0].p1.m_y, segments[0].p2.m_y);
+			yMin = min(segments[0].p1.m_y, segments[0].p2.m_y);
+			now = segments[0].p2;
+
+			segments.erase(segments.begin());
+		}
+		else {
+			lId++;
+			this->m_regionArray[rId].m_loopArray.push_back(CP_Loop());
+			CP_Loop* tmpLoop = & this->m_regionArray[rId].m_loopArray[lId];
+			tmpLoop->m_loopIDinRegion = lId;
+			tmpLoop->m_polygon = this;
+			tmpLoop->m_regionIDinPolygon = rId;
+
+			this->m_pointArray.push_back(segments[0].p1);
+			this->m_pointArray.push_back(segments[0].p2);
+			int arrSize = this->m_pointArray.size();
+			tmpLoop->m_pointIDArray.push_back(arrSize - 2);
+			tmpLoop->m_pointIDArray.push_back(arrSize - 1);
+			
+			leftest.m_x = segments[0].p1.m_x;
+			leftest.m_y = segments[0].p1.m_y;
+			now = segments[0].p2;
+			
+			segments.erase(segments.begin());
+		}
+
+		while (true) {
+			vector<CP_Segment>::iterator it;
+			for (it = segments.begin(); it != segments.end(); it++) {
+				if (it->p1 == now) break;
+			}
+			if (it->p2 == leftest) {
+				segments.erase(it);
+				break;
+			}
+			this->m_pointArray.push_back(it->p2);
+			int arrSize = this->m_pointArray.size();
+			this->m_regionArray[rId].m_loopArray[lId].m_pointIDArray.push_back(arrSize - 1);
+			now = it->p2;
+			xMax = max(it->p2.m_x, xMax);
+			yMax = max(it->p2.m_y, yMax);
+			yMin = min(it->p2.m_y, yMin);
+			segments.erase(it);
+		}
+	}
+}
 
 void gb_distanceMinPointLoop(double&d, int& idRegion, int& idLoop,
 	CP_Point& pt, CP_Polygon& pn)
@@ -784,21 +905,43 @@ CP_Point middlePoint(CP_Point p1, CP_Point p2) {
 	return CP_Point((p1.m_x + p2.m_x) / 2, (p1.m_y + p2.m_y) / 2);
 }
 
+CP_Point middlePoint(CP_Segment segment) {
+	return middlePoint(segment.p1, segment.p2);
+}
+
 bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex) {
 	double tmp = xmult(a, l1, l2);
-	if (include_vertex)
-		return ZERO(tmp) && (
-			(a.m_x <= l1.m_x && a.m_x >= l2.m_x ) || (a.m_x <= l2.m_x && a.m_x >= l1.m_x)
+	if (include_vertex) {
+		if (a.m_x == l1.m_x)
+			return ZERO(tmp) && (
+				(a.m_y <= l1.m_y && a.m_y >= l2.m_y) || (a.m_y <= l2.m_y && a.m_y >= l1.m_y)
 			);
-	else return  ZERO(tmp) && (
-		(a.m_x < l1.m_x && a.m_x > l2.m_x) || (a.m_x < l2.m_x && a.m_x >= l2.m_x)
-		);
+		else
+			return ZERO(tmp) && (
+				(a.m_x <= l1.m_x && a.m_x >= l2.m_x) || (a.m_x <= l2.m_x && a.m_x >= l1.m_x)
+			);
+	}
+
+	else {
+		if (a.m_x == l1.m_x)
+			return ZERO(tmp) && (
+				(a.m_y < l1.m_y && a.m_y > l2.m_y) || (a.m_y < l2.m_y && a.m_y > l1.m_y)
+			);
+		else
+			return ZERO(tmp) && (
+				(a.m_x < l1.m_x && a.m_x > l2.m_x) || (a.m_x < l2.m_x && a.m_x > l1.m_x)
+			);
+	}
 }
 
 bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex) {
 	return pointInSegment(a, s.p1, s.p2, include_vertex);
 }
 
+// 假设已经确保两线段要么不相交，要么相交于顶点
+bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon) {
+	return polygon.include(middlePoint(segment)) != OUTSIDE;
+}
 
 bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s) {
 	return xmult(a, s.p1, s.p2) * xmult(b, s.p1, s.p2) > 0;
@@ -830,6 +973,15 @@ CP_Point getIntersection(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2) {
 	return ans;
 }
 
+void insertPoint(CP_Polygon& polygon, CP_Point point, CP_Loop* & loop, int position) {
+	if (position > 0 &&
+		polygon.m_pointArray[loop->m_pointIDArray[position - 1]] == point) {
+		return;
+	}
+	polygon.m_pointArray.push_back(point);
+	loop->m_pointIDArray.insert(loop->m_pointIDArray.begin() + position, polygon.m_pointArray.size() - 1);
+}
+
 // 正确插入交点
 void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_Polygon& b) {
 	a = a_old;
@@ -840,20 +992,20 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 	for (ia = 0; ia < anr; ia++) {
 		anl = a.m_regionArray[ia].m_loopArray.size();
 		for (ja = 0; ja < anl; ja++) {
-			CP_Loop aLoop = a.m_regionArray[ia].m_loopArray[ja];
-			anv = aLoop.m_pointIDArray.size();
+			CP_Loop* aLoop = &a.m_regionArray[ia].m_loopArray[ja];
+			anv = aLoop->m_pointIDArray.size();
 			for (za = 0; za < anv; za++) {
-				CP_Point pa1 = a.m_pointArray[aLoop.m_pointIDArray[za]];
-				CP_Point pa2 = a.m_pointArray[aLoop.m_pointIDArray[(za + 1) % anv]];
+				CP_Point pa1 = a.m_pointArray[aLoop->m_pointIDArray[za]];
+				CP_Point pa2 = a.m_pointArray[aLoop->m_pointIDArray[(za + 1) % anv]];
 
 				for (ib = 0; ib < bnr; ib++) {
 					bnl = b.m_regionArray[ib].m_loopArray.size();
 					for (jb = 0; jb < bnl; jb++) {
-						CP_Loop bLoop = b.m_regionArray[ib].m_loopArray[jb];
-						bnv = bLoop.m_pointIDArray.size();
+						CP_Loop* bLoop = &b.m_regionArray[ib].m_loopArray[jb];
+						bnv = bLoop->m_pointIDArray.size();
 						for (zb = 0; zb < bnv; zb++) {
-							CP_Point pb1 = b.m_pointArray[bLoop.m_pointIDArray[zb]];
-							CP_Point pb2 = b.m_pointArray[bLoop.m_pointIDArray[(zb + 1) % bnv]];
+							CP_Point pb1 = b.m_pointArray[bLoop->m_pointIDArray[zb]];
+							CP_Point pb2 = b.m_pointArray[bLoop->m_pointIDArray[(zb + 1) % bnv]];
 						
 							if (pa1 == pb1 && pa2 == pb2) {
 								segmentsSame.push_back(CP_Segment(pa1, pa2));
@@ -870,17 +1022,16 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 									) {
 									// 同向
 									if (distance(pa1, pb1) < distance(pa2, pb1)) { // TODO(考虑pa1 == pb1)
-										b.m_pointArray.push_back(pa1);
-										b.m_pointArray.push_back(pa2);
+										insertPoint(b, pa1, bLoop, zb + 1);
+										insertPoint(b, pa2, bLoop, zb + 2);
 										segmentsSame.push_back(CP_Segment(pa1, pa2));
 									}
+									// 反向
 									else {
-										b.m_pointArray.push_back(pa2);
-										b.m_pointArray.push_back(pa1);
+										insertPoint(b, pa2, bLoop, zb + 1);
+										insertPoint(b, pa1, bLoop, zb + 2);
 										segmentsReve.push_back(CP_Segment(pa1, pa2));
 									}
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 1, b.m_pointArray.size() - 2);
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 2, b.m_pointArray.size() - 1);
 									zb += 2;
 								}
 								// 完全重合(b in a)
@@ -889,68 +1040,60 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 									) {
 									// 同向
 									if (distance(pb1, pa1) < distance(pb2, pa1)) {
-										a.m_pointArray.push_back(pb1);
-										a.m_pointArray.push_back(pb2);
+										insertPoint(a, pb1, aLoop, za + 1);
+										insertPoint(a, pb2, aLoop, za + 2);
 										segmentsSame.push_back(CP_Segment(pb1, pb2));
 									}
 									else {
-										a.m_pointArray.push_back(pb2);
-										a.m_pointArray.push_back(pb1);
+										insertPoint(a, pb2, aLoop, za + 1);
+										insertPoint(a, pb1, aLoop, za + 2);
 										segmentsReve.push_back(CP_Segment(pb2, pb1));
 									}
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin() + za + 1, a.m_pointArray.size() - 2);
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin() + za + 2, a.m_pointArray.size() - 1);
-									pa2 = a.m_pointArray[aLoop.m_pointIDArray[(za + 1) % anv]];
+									pa2 = a.m_pointArray[aLoop->m_pointIDArray[(za + 1) % anv]];
 								}
 								// 部分重合 // pa1-pb1-pa2-pb2
 								else if (pointInSegment(pb1, pa1, pa2) && pointInSegment(pa2, pb1, pb2)) {
-									a.m_pointArray.push_back(pb1);
-									b.m_pointArray.push_back(pa2);
+									insertPoint(a, pb1, aLoop, za + 1);
+									insertPoint(b, pa2, bLoop, zb + 1);
 									segmentsSame.push_back(CP_Segment(pb1, pa2));
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin + za + 1, a.m_pointArray.size() - 1);
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin + zb + 1, b.m_pointArray.size() - 1);
 								}
 								// pb1 pa1 pb2 pa2
 								else if (pointInSegment(pa1, pb1, pb2) && pointInSegment(pb2, pa1, pa2)) {
-									a.m_pointArray.push_back(pb2);
-									b.m_pointArray.push_back(pa1);
+									insertPoint(a, pb2, aLoop, za + 1);
+									insertPoint(b, pa1, bLoop, zb + 1);
 									segmentsSame.push_back(CP_Segment(pb2, pa1));
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin + za + 1, a.m_pointArray.size() - 1);
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin + zb + 1, b.m_pointArray.size() - 1);
 								}
 								// pa1 pb2 pa2 pb1
 								else if (pointInSegment(pb2, pa1, pb2) && pointInSegment(pa2, pb1, pb2)) {
-									a.m_pointArray.push_back(pb2);
-									b.m_pointArray.push_back(pa2);
+									insertPoint(a, pb2, aLoop, za + 1);
+									insertPoint(b, pa2, bLoop, zb + 1);
 									segmentsReve.push_back(CP_Segment(pb2, pa2));
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin + za + 1, a.m_pointArray.size() - 1);
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin + zb + 1, b.m_pointArray.size() - 1);
 								}
 								// pb1 pa1 pb1 pa2
 								else if (pointInSegment(pb1, pa1, pb2) && pointInSegment(pa1, pb1, pb2)) {
-									a.m_pointArray.push_back(pb1);
-									b.m_pointArray.push_back(pa1);
+									insertPoint(a, pb1, aLoop, za + 1);
+									insertPoint(b, pa1, bLoop, zb + 1);
 									segmentsReve.push_back(CP_Segment(pb1, pa1));
-									aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin + za + 1, a.m_pointArray.size() - 1);
-									bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin + zb + 1, b.m_pointArray.size() - 1);
 								}
 							}
 							// 普通相交
 							else {
 								CP_Point intersection = getIntersection(pa1, pa2, pb1, pb2);
-								if (intersection == pa1 || intersection == pa2 || intersection == pb1 || intersection == pb2) {
+								// 端点相交
+								if ((intersection == pa1 && (pa1 == pb1 || pa1 == pb2)) ||
+									(intersection == pa2 && (pa2 == pb1 || pa2 == pb2)) ||
+									(intersection == pb1 && (pb1 == pa1 || pb1 == pa2)) ||
+									(intersection == pb2 && (pb2 == pa1 || pb2 == pa2)) ) {
 									continue;
 								}
-								a.m_pointArray.push_back(intersection);
-								aLoop.m_pointIDArray.insert(aLoop.m_pointIDArray.begin() + za + 1, a.m_pointArray.size() - 1);
-								b.m_pointArray.push_back(intersection);
-								bLoop.m_pointIDArray.insert(bLoop.m_pointIDArray.begin() + zb + 1, b.m_pointArray.size() - 1);
+								insertPoint(a, intersection, aLoop, za + 1);
+								insertPoint(b, intersection, bLoop, zb + 1);
 								zb += 1;
 							}
-							anv = aLoop.m_pointIDArray.size();
-							bnv = bLoop.m_pointIDArray.size();
-							pa1 = a.m_pointArray[aLoop.m_pointIDArray[za]];
-							pa2 = a.m_pointArray[aLoop.m_pointIDArray[(za + 1) % anv]];
+							anv = aLoop->m_pointIDArray.size();
+							bnv = bLoop->m_pointIDArray.size();
+							pa1 = a.m_pointArray[aLoop->m_pointIDArray[za]];
+							pa2 = a.m_pointArray[aLoop->m_pointIDArray[(za + 1) % anv]];
 						} // zb
 					} // jb
 				} // ib
