@@ -270,10 +270,19 @@ bool CP_Polygon::checkRegion() {
 	return true;
 }
 
-CP_Polygon CP_Polygon::Union(CP_Polygon& b) {
+bool findSegmentandDelete(CP_Segment& segment, vector<CP_Segment>& segments) {
+	vector<CP_Segment>::iterator it = find(segments.begin(), segments.end(), segment);
+	if (it != segments.end()) {
+		segments.erase(it);
+		return true;
+	}
+	return false;
+}
+
+CP_Polygon CP_Polygon::Union(const CP_Polygon& b) {
 	CP_Polygon aNew, bNew, ans;
-	vector<CP_Segment> segments;
-	addIntersectedPoint(*this, b, aNew, bNew);
+	vector<CP_Segment> segments, sameDir, reveDir;
+	addIntersectedPoint(*this, b, aNew, bNew, sameDir, reveDir);
 	int nr = aNew.m_regionArray.size(), nl, nv, i, j, z;
 	for (i = 0; i < nr; i++) {
 		nl = aNew.m_regionArray[i].m_loopArray.size();
@@ -285,7 +294,7 @@ CP_Polygon CP_Polygon::Union(CP_Polygon& b) {
 				CP_Point p2 = aNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
 				CP_Segment segment = CP_Segment(p1, p2);
 				// 属于A不在B
-				if (!segmentInPolygon(segment, b)) { // TODO 重合
+				if (findSegmentandDelete(segment, sameDir) || segmentInPolygon(segment, b) == OUTSIDE) { // TODO 重合
 					segments.push_back(segment);
 				}
 			}
@@ -301,20 +310,20 @@ CP_Polygon CP_Polygon::Union(CP_Polygon& b) {
 				CP_Point p1 = bNew.m_pointArray[loop.m_pointIDArray[z]];
 				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
 				CP_Segment segment = CP_Segment(p1, p2);
-				if (!segmentInPolygon(segment, *this)) { // TODO 重合
+				if (findSegmentandDelete(segment, sameDir) || segmentInPolygon(segment, *this) == OUTSIDE) { // TODO 重合
 					segments.push_back(segment);
 				}
 			}
 		}
 	}
-	sort(segments.begin(), segments.end(), order);//先对vector中元素按照x-y坐标升序排序
+	sort(segments.begin(), segments.end(), order);// 按照x-y坐标升序排序
 	return CP_Polygon(segments);
 }
 
-CP_Polygon CP_Polygon::Intersection(CP_Polygon& b) {
+CP_Polygon CP_Polygon::Intersection(const CP_Polygon& b) {
 	CP_Polygon aNew, bNew, ans;
-	vector<CP_Segment> segments;
-	addIntersectedPoint(*this, b, aNew, bNew);
+	vector<CP_Segment> segments, sameDir, reveDir;
+	addIntersectedPoint(*this, b, aNew, bNew, sameDir, reveDir);
 	int nr = aNew.m_regionArray.size(), nl, nv, i, j, z;
 	for (i = 0; i < nr; i++) {
 		nl = aNew.m_regionArray[i].m_loopArray.size();
@@ -326,7 +335,7 @@ CP_Polygon CP_Polygon::Intersection(CP_Polygon& b) {
 				CP_Point p2 = aNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
 				CP_Segment segment = CP_Segment(p1, p2);
 				// 属于A并在B
-				if (segmentInPolygon(segment, b)) { // TODO 重合
+				if (findSegmentandDelete(segment, sameDir) || segmentInPolygon(segment, b) == INSIDE) { // TODO 重合
 					segments.push_back(segment);
 				}
 			}
@@ -342,7 +351,48 @@ CP_Polygon CP_Polygon::Intersection(CP_Polygon& b) {
 				CP_Point p1 = bNew.m_pointArray[loop.m_pointIDArray[z]];
 				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
 				CP_Segment segment = CP_Segment(p1, p2);
-				if (segmentInPolygon(segment, *this)) { // TODO 重合
+				if (findSegmentandDelete(segment, sameDir) || segmentInPolygon(segment, *this) == INSIDE) { // TODO 重合
+					segments.push_back(segment);
+				}
+			}
+		}
+	}
+	sort(segments.begin(), segments.end(), order);//先对vector中元素按照x-y坐标升序排序
+	return CP_Polygon(segments);
+}
+
+CP_Polygon CP_Polygon::Subtract(const CP_Polygon& b) {
+	CP_Polygon aNew, bNew, ans;
+	vector<CP_Segment> segments, sameDir, reveDir;
+	addIntersectedPoint(*this, b, aNew, bNew, sameDir, reveDir);
+	int nr = aNew.m_regionArray.size(), nl, nv, i, j, z;
+	for (i = 0; i < nr; i++) {
+		nl = aNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = aNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = aNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = aNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				// 属于A不在B
+				if (findSegmentandDelete(segment, reveDir) || segmentInPolygon(segment, b) == OUTSIDE) { // TODO 重合
+					segments.push_back(CP_Segment(segment.p2, segment.p1));
+				}
+			}
+		}
+	}
+	nr = bNew.m_regionArray.size();
+	for (i = 0; i < nr; i++) {
+		nl = bNew.m_regionArray[i].m_loopArray.size();
+		for (j = 0; j < nl; j++) {
+			CP_Loop loop = bNew.m_regionArray[i].m_loopArray[j];
+			nv = loop.m_pointIDArray.size();
+			for (z = 0; z < nv; z++) {
+				CP_Point p1 = bNew.m_pointArray[loop.m_pointIDArray[z]];
+				CP_Point p2 = bNew.m_pointArray[loop.m_pointIDArray[(z + 1) % nv]];
+				CP_Segment segment = CP_Segment(p1, p2);
+				if (findSegmentandDelete(segment, reveDir) || segmentInPolygon(segment, *this) == INSIDE) { // TODO 重合
 					segments.push_back(segment);
 				}
 			}
@@ -994,13 +1044,8 @@ bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex) {
 }
 
 // 假设已经确保两线段要么不相交，要么相交于顶点
-bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon, bool includeBoundary) {
-	if (includeBoundary) {
-		return polygon.include(middlePoint(segment)) != OUTSIDE;
-	}
-	else {
-		return polygon.include(middlePoint(segment)) == INSIDE;
-	}
+POINT_STATUS segmentInPolygon(CP_Segment segment, CP_Polygon polygon) {
+	return polygon.include(middlePoint(segment));
 }
 
 bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s) {
@@ -1033,22 +1078,25 @@ CP_Point getIntersection(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2) {
 	return ans;
 }
 
-void insertPoint(CP_Polygon& polygon, CP_Point point, CP_Loop* & loop, int position) {
-	if (position > 0 &&
-		polygon.m_pointArray[loop->m_pointIDArray[position - 1]] == point) {
-		return;
+bool insertPoint(CP_Polygon& polygon, CP_Point point, CP_Loop* & loop, int position) {
+	int size = loop->m_pointIDArray.size();
+	// 如果该点和前\后一个点相等，跳过
+	if (polygon.m_pointArray[loop->m_pointIDArray[(position - 1 + size) % size ]] == point ||
+		polygon.m_pointArray[loop->m_pointIDArray[(position) % size]] == point) {
+		return false;
 	}
 	polygon.m_pointArray.push_back(point);
 	loop->m_pointIDArray.insert(loop->m_pointIDArray.begin() + position, polygon.m_pointArray.size() - 1);
+	return true;
 }
 
 // 正确插入交点
-void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_Polygon& b) {
+void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_Polygon& b,
+	vector<CP_Segment>& sameDir, vector<CP_Segment>& reveDir) {
 	a = a_old;
 	b = b_old;
 	int anr, anl, anv, bnr, bnl, bnv, ia, ja, za, ib, jb, zb;
 	anr = a.m_regionArray.size(), bnr = b.m_regionArray.size();
-	vector<CP_Segment> segmentsSame, segmentsReve;
 	for (ia = 0; ia < anr; ia++) {
 		anl = a.m_regionArray[ia].m_loopArray.size();
 		for (ja = 0; ja < anl; ja++) {
@@ -1067,12 +1115,12 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 							CP_Point pb1 = b.m_pointArray[bLoop->m_pointIDArray[zb]];
 							CP_Point pb2 = b.m_pointArray[bLoop->m_pointIDArray[(zb + 1) % bnv]];
 						
-							if (pa1 == pb1 && pa2 == pb2) {
-								segmentsSame.push_back(CP_Segment(pa1, pa2));
-							} else if (pa1 == pb2 && pa2 == pb1) {
-								segmentsReve.push_back(CP_Segment(pa1, pa2));
+							if (pa1 == pb1 && pa2 == pb2) { // 相同线段
+								sameDir.push_back(CP_Segment(pa1, pa2));
+							} else if (pa1 == pb2 && pa2 == pb1) { // 反向线段
+								reveDir.push_back(CP_Segment(pa1, pa2));
 							}
-							else if (parallel(pa1, pa2, pb1, pb2) && !inSameLine(pa1, pa2, pb1) || !segmentIntersected(pa1, pa2, pb1, pb2)) {
+							else if (!segmentIntersected(pa1, pa2, pb1, pb2)) {
 								continue;
 							}
 							else if (parallel(pa1, pa2, pb1, pb2) && inSameLine(pa1, pa2, pb1)) {
@@ -1081,18 +1129,17 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 									(pa1.m_x == pa2.m_x && between(pa1.m_y, pb1.m_y, pb2.m_y) && between(pa2.m_y, pb1.m_y, pb2.m_y))
 									) {
 									// 同向
-									if (distance(pa1, pb1) < distance(pa2, pb1)) { // TODO(考虑pa1 == pb1)
-										insertPoint(b, pa1, bLoop, zb + 1);
-										insertPoint(b, pa2, bLoop, zb + 2);
-										segmentsSame.push_back(CP_Segment(pa1, pa2));
+									if (distance(pa1, pb1) < distance(pa2, pb1)) {
+										if(insertPoint(b, pa1, bLoop, zb + 1)) zb++;
+										if(insertPoint(b, pa2, bLoop, zb + 2)) zb++;
+										sameDir.push_back(CP_Segment(pa1, pa2));
 									}
 									// 反向
 									else {
-										insertPoint(b, pa2, bLoop, zb + 1);
-										insertPoint(b, pa1, bLoop, zb + 2);
-										segmentsReve.push_back(CP_Segment(pa1, pa2));
+										if(insertPoint(b, pa2, bLoop, zb + 1)) zb++;
+										if(insertPoint(b, pa1, bLoop, zb + 2)) zb++;
+										reveDir.push_back(CP_Segment(pa1, pa2));
 									}
-									zb += 2;
 								}
 								// 完全重合(b in a)
 								else if (pa1.m_x != pa2.m_x && between(pb1.m_x, pa1.m_x, pa2.m_x) && between(pb2.m_x, pa1.m_x, pa2.m_x) ||
@@ -1102,38 +1149,37 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 									if (distance(pb1, pa1) < distance(pb2, pa1)) {
 										insertPoint(a, pb1, aLoop, za + 1);
 										insertPoint(a, pb2, aLoop, za + 2);
-										segmentsSame.push_back(CP_Segment(pb1, pb2));
+										sameDir.push_back(CP_Segment(pb1, pb2));
 									}
 									else {
 										insertPoint(a, pb2, aLoop, za + 1);
 										insertPoint(a, pb1, aLoop, za + 2);
-										segmentsReve.push_back(CP_Segment(pb2, pb1));
+										reveDir.push_back(CP_Segment(pb2, pb1));
 									}
-									pa2 = a.m_pointArray[aLoop->m_pointIDArray[(za + 1) % anv]];
 								}
 								// 部分重合 // pa1-pb1-pa2-pb2
 								else if (pointInSegment(pb1, pa1, pa2) && pointInSegment(pa2, pb1, pb2)) {
 									insertPoint(a, pb1, aLoop, za + 1);
 									insertPoint(b, pa2, bLoop, zb + 1);
-									segmentsSame.push_back(CP_Segment(pb1, pa2));
+									sameDir.push_back(CP_Segment(pb1, pa2));
 								}
 								// pb1 pa1 pb2 pa2
 								else if (pointInSegment(pa1, pb1, pb2) && pointInSegment(pb2, pa1, pa2)) {
 									insertPoint(a, pb2, aLoop, za + 1);
 									insertPoint(b, pa1, bLoop, zb + 1);
-									segmentsSame.push_back(CP_Segment(pb2, pa1));
+									sameDir.push_back(CP_Segment(pb2, pa1));
 								}
 								// pa1 pb2 pa2 pb1
 								else if (pointInSegment(pb2, pa1, pb2) && pointInSegment(pa2, pb1, pb2)) {
 									insertPoint(a, pb2, aLoop, za + 1);
 									insertPoint(b, pa2, bLoop, zb + 1);
-									segmentsReve.push_back(CP_Segment(pb2, pa2));
+									reveDir.push_back(CP_Segment(pb2, pa2));
 								}
 								// pb1 pa1 pb1 pa2
 								else if (pointInSegment(pb1, pa1, pb2) && pointInSegment(pa1, pb1, pb2)) {
 									insertPoint(a, pb1, aLoop, za + 1);
 									insertPoint(b, pa1, bLoop, zb + 1);
-									segmentsReve.push_back(CP_Segment(pb1, pa1));
+									reveDir.push_back(CP_Segment(pb1, pa1));
 								}
 							}
 							// 普通相交
@@ -1147,8 +1193,7 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 									continue;
 								}
 								insertPoint(a, intersection, aLoop, za + 1);
-								insertPoint(b, intersection, bLoop, zb + 1);
-								zb += 1;
+								if(insertPoint(b, intersection, bLoop, zb + 1)) zb++;
 							}
 							anv = aLoop->m_pointIDArray.size();
 							bnv = bLoop->m_pointIDArray.size();
@@ -1157,7 +1202,7 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 						} // zb
 					} // jb
 				} // ib
-				anv = a.m_regionArray[ia].m_loopArray[ja].m_pointIDArray.size();
+				anv = aLoop->m_pointIDArray.size();
 			} //za
 		} // ja
 	} // ia

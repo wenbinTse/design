@@ -39,7 +39,7 @@ public:
 public:
 	CP_Segment(CP_Point _p1, CP_Point _p2) :p1(_p1), p2(_p2) {};
 	bool operator == (const CP_Segment& s) {
-		return (p1 == s.p1 && p2 == s.p2) || (p1 == s.p2 && p2 == s.p1);
+		return (p1 == s.p1 && p2 == s.p2);
 	}
 };
 
@@ -105,8 +105,9 @@ class CP_Polygon
 		POINT_STATUS include(CP_Point p);
 		bool check(string& message);
 		bool check(string& message, string name);
-		CP_Polygon Union(CP_Polygon& b);
-		CP_Polygon Intersection(CP_Polygon& b);
+		CP_Polygon Union(const CP_Polygon& b);
+		CP_Polygon Intersection(const CP_Polygon& b);
+		CP_Polygon Subtract(const CP_Polygon& b);
 		CP_Polygon operator = (const CP_Polygon polygon);
 }; // 类CP_Polygon定义结束
 
@@ -165,12 +166,13 @@ extern CP_Point middlePoint(CP_Point p1, CP_Point p2);
 extern CP_Point middlePoint(CP_Segment s);
 extern bool pointInSegment(CP_Point a, CP_Point l1, CP_Point l2, bool include_vertex = true);
 extern bool pointInSegment(CP_Point a, CP_Segment s, bool include_vertex = true);
-extern bool segmentInPolygon(CP_Segment segment, CP_Polygon polygon, bool includeBoundary = true);
+extern POINT_STATUS segmentInPolygon(CP_Segment segment, CP_Polygon polygon);
 extern bool inSameSideOfSegment(CP_Point a, CP_Point b, CP_Segment s);
 extern bool segmentIntersected(CP_Segment s1, CP_Segment s2);
 extern bool segmentIntersected(CP_Point p1, CP_Point p2, CP_Point p3, CP_Point p4);
 extern bool inSameLine(CP_Point a, CP_Point b, CP_Point c);
 extern CP_Point getIntersection(CP_Point a1, CP_Point a2, CP_Point b1, CP_Point b2);
-extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b, CP_Polygon& c, CP_Polygon& d);
+extern void addIntersectedPoint(CP_Polygon a, CP_Polygon b, CP_Polygon& c, CP_Polygon& d,
+	vector<CP_Segment>& sameDir, vector<CP_Segment>& reveDir);
 #endif
 
