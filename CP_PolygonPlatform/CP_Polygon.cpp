@@ -2,6 +2,8 @@
 #include "CP_Polygon.h"
 #include<algorithm>
 
+extern double ACC = 1e-6;
+
 bool order(const CP_Segment& a, const CP_Segment& b) {
 	return a.p1.m_x < b.p1.m_x;
 }
@@ -1084,6 +1086,7 @@ void addIntersectedPoint(CP_Polygon a_old, CP_Polygon b_old, CP_Polygon& a, CP_P
 	vector<CP_Segment>& sameDir, vector<CP_Segment>& reveDir) {
 	a = a_old;
 	b = b_old;
+	double ss = ACC;
 	int anr, anl, anv, bnr, bnl, bnv, ia, ja, za, ib, jb, zb;
 	anr = a.m_regionArray.size(), bnr = b.m_regionArray.size();
 	for (ia = 0; ia < anr; ia++) {

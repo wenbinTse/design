@@ -6,7 +6,7 @@
 using namespace std;
 #include <vector>
 
-const double ACC = 1e-6;
+extern double ACC;
 
 #define DOUBLE_PI           6.28318530717958647692
 #define PI                  3.14159265358979323846
