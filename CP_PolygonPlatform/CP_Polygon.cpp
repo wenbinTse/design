@@ -402,36 +402,31 @@ CP_Polygon CP_Polygon::Subtract(const CP_Polygon& b) {
 	return CP_Polygon(segments);
 }
 
+bool pushPoint(CP_Polygon* const polygon, CP_Loop* loop, CP_Point& point) {
+	int size = loop->m_pointIDArray.size();
+	if (size && (polygon->m_pointArray[loop->m_pointIDArray[0]] == point ||
+		polygon->m_pointArray[loop->m_pointIDArray[size - 1]] == point)) {
+		return false;
+	}
+	polygon->m_pointArray.push_back(point);
+	loop->m_pointIDArray.push_back(polygon->m_pointArray.size() - 1);
+}
+
 CP_Polygon::CP_Polygon(vector<CP_Segment> segments) {
-	CP_Point leftest = CP_Point(INF_SMALL, 0), now;
-	double xMax = INF_SMALL, yMax = INF_SMALL, yMin = INF;
+	CP_Point start = CP_Point(INF_SMALL, 0), now;
 	int rId = -1, lId = -1;
 	while (segments.size()) {
-		if (rId == -1 || this->include(segments[0].p1) != INSIDE) {
+		if (rId == -1 || this->include(segments[0].p1) != INSIDE) { // 外环起点
 			rId++;
 			lId = 0;
 			this->m_regionArray.push_back(CP_Region(rId, this));
-			this->m_regionArray[rId].m_regionIDinPolygon = rId;
-			this->m_regionArray[rId].m_polygon = this;
-
 			this->m_regionArray[rId].m_loopArray.push_back(CP_Loop(lId, rId, this));
 			CP_Loop* tmpLoop = & this->m_regionArray[rId].m_loopArray[lId];
-			tmpLoop->m_loopIDinRegion = lId;
-			tmpLoop->m_polygon = this;
-			tmpLoop->m_regionIDinPolygon = rId;
 
-			this->m_pointArray.push_back(segments[0].p1);
-			this->m_pointArray.push_back(segments[0].p2);
-			int arrSize = this->m_pointArray.size();
-			tmpLoop->m_pointIDArray.push_back(arrSize - 2);
-			tmpLoop->m_pointIDArray.push_back(arrSize - 1);
+			pushPoint(this, tmpLoop, segments[0].p1);
+			pushPoint(this, tmpLoop, segments[0].p2);
 
-			leftest.m_x = segments[0].p1.m_x;
-			leftest.m_y = segments[0].p1.m_y;
-
-			xMax = segments[0].p2.m_x;
-			yMax = max(segments[0].p1.m_y, segments[0].p2.m_y);
-			yMin = min(segments[0].p1.m_y, segments[0].p2.m_y);
+			start = segments[0].p1;
 			now = segments[0].p2;
 
 			segments.erase(segments.begin());
@@ -440,18 +435,11 @@ CP_Polygon::CP_Polygon(vector<CP_Segment> segments) {
 			lId++;
 			this->m_regionArray[rId].m_loopArray.push_back(CP_Loop());
 			CP_Loop* tmpLoop = & this->m_regionArray[rId].m_loopArray[lId];
-			tmpLoop->m_loopIDinRegion = lId;
-			tmpLoop->m_polygon = this;
-			tmpLoop->m_regionIDinPolygon = rId;
 
-			this->m_pointArray.push_back(segments[0].p1);
-			this->m_pointArray.push_back(segments[0].p2);
-			int arrSize = this->m_pointArray.size();
-			tmpLoop->m_pointIDArray.push_back(arrSize - 2);
-			tmpLoop->m_pointIDArray.push_back(arrSize - 1);
+			pushPoint(this, tmpLoop, segments[0].p1);
+			pushPoint(this, tmpLoop, segments[0].p2);
 			
-			leftest.m_x = segments[0].p1.m_x;
-			leftest.m_y = segments[0].p1.m_y;
+			start = segments[0].p1;
 			now = segments[0].p2;
 			
 			segments.erase(segments.begin());
@@ -462,17 +450,18 @@ CP_Polygon::CP_Polygon(vector<CP_Segment> segments) {
 			for (it = segments.begin(); it != segments.end(); it++) {
 				if (it->p1 == now) break;
 			}
-			if (it->p2 == leftest) {
+			if (it == segments.end()) {
+				throw exception("边构造错误");
+			}
+			if (it->p2 == start) {
 				segments.erase(it);
 				break;
 			}
-			this->m_pointArray.push_back(it->p2);
-			int arrSize = this->m_pointArray.size();
-			this->m_regionArray[rId].m_loopArray[lId].m_pointIDArray.push_back(arrSize - 1);
+
+			CP_Loop* tmpLoop = &this->m_regionArray[rId].m_loopArray[lId];
+			pushPoint(this, tmpLoop, it->p2);
+			
 			now = it->p2;
-			xMax = max(it->p2.m_x, xMax);
-			yMax = max(it->p2.m_y, yMax);
-			yMin = min(it->p2.m_y, yMin);
 			segments.erase(it);
 		}
 	}
